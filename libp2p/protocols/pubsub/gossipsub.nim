@@ -684,13 +684,13 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
     topic
 
   if topic.len <= 0: # data could be 0/empty
-    debug "Empty topic, skipping publish"
+    notice "Empty topic, skipping publish"
     return 0
 
   # base returns always 0
   discard await procCall PubSub(g).publish(topic, data)
 
-  trace "Publishing message on topic", data = data.shortLog
+  notice "Publishing message on topic", data = data.shortLog
 
   var peers: HashSet[PubSubPeer]
 
@@ -746,7 +746,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
 
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
-    debug "No peers for topic, skipping publish",
+    notice "No peers for topic, skipping publish",
       peersOnTopic = topicPeers.len,
       connectedPeers = topicPeers.filterIt(it.connected).len,
       topic
@@ -761,20 +761,20 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
         inc g.msgSeqno
         Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
     msgId = g.msgIdProvider(msg).valueOr:
-      trace "Error generating message id, skipping publish", error = error
+      notice "Error generating message id, skipping publish", error = error
       libp2p_gossipsub_failed_publish.inc()
       return 0
 
   logScope:
     msgId = shortLog(msgId)
 
-  trace "Created new message", msg = shortLog(msg), peers = peers.len
+  notice "Created new message", msg = shortLog(msg), peers = peers.len
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -
     # this might happen when not using sequence id:s and / or with a custom
     # message id provider
-    trace "Dropping already-seen message"
+    notice "Dropping already-seen message"
     return 0
 
   g.mcache.put(msgId, msg)
@@ -786,7 +786,7 @@ method publish*(g: GossipSub, topic: string, data: seq[byte]): Future[int] {.asy
   else:
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
 
-  trace "Published message to peers", peers = peers.len
+  notice "Published message to peers", peers = peers.len
   return peers.len
 
 proc maintainDirectPeer(g: GossipSub, id: PeerId, addrs: seq[MultiAddress]) {.async.} =
